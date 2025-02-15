@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { useApi } from "@/src/hooks/useApi";
 import { useTickets } from "@/src/context/SupportTicketContext";
 import { formatDateWithTimeAndDay, timeAgo } from "../utils/dateUtils";
+import { AiOutlineCheckCircle } from "react-icons/ai";
+import ResolveTicketModal from "@/src/components/ResolveTicketModal"; // Import the modal
 
 interface ChatAreaProps {
   ticket: any; // Ticket object passed from the parent component
@@ -13,10 +15,32 @@ const ChatArea: React.FC<ChatAreaProps> = ({ ticket }) => {
     customer_name,
     title,
     ticket_id,
+    status,
   } = ticket;
+
   const [message, setMessage] = useState(""); // Message input state
   const { request, loading } = useApi(); // Using the `useApi` hook
   const { refreshTickets } = useTickets();
+  
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false); // State to control modal visibility
+
+  // Function to handle resolving the ticket
+  const handleResolveTicket = async () => {
+    try {
+      await request(
+        "/api/core/kitchen-operations/support-ticket/resolve",
+        "POST",
+        {},
+        { id: ticket_id }
+      );
+      refreshTickets(); // Refresh the tickets context
+      alert("Ticket resolved successfully!");
+    } catch (err) {
+      console.error("Failed to resolve ticket:", err);
+    }
+  };
+
   // Function to handle sending a message
   const handleSendMessage = async () => {
     if (!message.trim() || !ticket_id) return; // Don't send empty messages or if ticket_id is not available
@@ -27,15 +51,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({ ticket }) => {
     };
 
     try {
-      // Send message to the API
       await request(
         "/api/core/kitchen-operations/support-ticket/reply",
         "POST",
         {},
         payload
       );
-      //   refreshTickets()
-      // After sending the message, you can add it to the local conversation (Optional)
       const newMessage = {
         id: conversations.length + 1, // Temporary ID
         ticket_id: ticket_id,
@@ -47,7 +68,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ ticket }) => {
         updated_at: new Date().toISOString(),
       };
       ticket.ticket_conversation.push(newMessage);
-
       setMessage("");
     } catch (err) {
       console.error("Failed to send message:", err);
@@ -57,9 +77,25 @@ const ChatArea: React.FC<ChatAreaProps> = ({ ticket }) => {
   return (
     <div className="flex flex-col h-full bg-white rounded-lg shadow-lg">
       {/* Chat Header */}
-      <div className="p-4 border-b bg-gray-100 rounded-t-lg">
-        <h2 className="text-xl font-semibold text-gray-800"><span>Issue: </span>{title}</h2>
-        <p className="text-sm text-gray-600">{customer_name}</p>
+      <div className="p-4 border-b bg-gray-100 rounded-t-lg flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-800">
+            <span>Issue: </span>
+            {title}
+          </h2>
+          <p className="text-sm text-gray-600">{customer_name}</p>
+        </div>
+        {/* Resolve Button or Icon */}
+        {status === "0" ? (
+          <button
+            onClick={() => setIsModalOpen(true)} // Open the modal
+            className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-blue-400 transition duration-200"
+          >
+            Resolve Ticket
+          </button>
+        ) : status === "3" ? (
+          <AiOutlineCheckCircle className="text-green-500 text-2xl" title="Ticket Resolved" />
+        ) : null}
       </div>
 
       {/* Conversations */}
@@ -83,8 +119,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ ticket }) => {
         ))}
       </div>
 
-      {/* Chat Messages */}
-
       {/* Input Box for Sending Messages */}
       <div className="p-4 border-t flex items-center space-x-3 bg-gray-100 rounded-b-lg">
         <div className="relative w-full">
@@ -103,7 +137,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ ticket }) => {
             {loading ? (
               "..."
             ) : (
-              <span className="flex ">
+              <span className="flex">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
@@ -117,14 +151,24 @@ const ChatArea: React.FC<ChatAreaProps> = ({ ticket }) => {
                     strokeWidth="2"
                     d="M14.25 4.75l7.25 7.25-7.25 7.25M3 12h18"
                   />
-                  Send response
                 </svg>
-                <small className="text-semi-bold">Send Response</small>
+                Send Response
               </span>
             )}
           </button>
         </div>
       </div>
+
+      {/* Resolve Ticket Modal */}
+      <ResolveTicketModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)} // Close modal without resolving
+        onConfirm={() => {
+          handleResolveTicket(); // Resolve ticket when confirmed
+          setIsModalOpen(false); // Close modal
+        }}
+        loading={loading}
+      />
     </div>
   );
 };
